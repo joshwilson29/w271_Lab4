@@ -1,0 +1,194 @@
+---
+title: "W271 Lab 04"
+author: "Morris Burkhardt, Josh Wilson, Matt Proetsch"
+date: "April 22, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir='C:/Users/Matt/Documents/Courses/W271/lab4/Lab4_2018Spring_2/')
+setwd('C:/Users/Matt/Documents/Courses/W271/lab4/Lab4_2018Spring_2/')
+```
+
+```{r message=FALSE, results='hide', warning=FALSE}
+for (l in c('stargazer','ggplot2','car','plm','lattice')){library(l,character.only=T)}
+library(ggplot2)
+```
+
+# Introduction
+
+... TBD
+
+# Exercise 1 - Exploratory Data Analysis
+
+```{r load}
+load('driving.Rdata')
+sum(xtabs(~ state, data=data) == 25) == 48  # Verify all 48 states have 25 years of data
+pdata <- pdata.frame(data, c('state','year'))
+```
+
+## Variable creation:
+```{r}
+pdata$sl <- (55*pdata$sl55) + (65*pdata$sl65) + (70*pdata$sl70) + (75*pdata$sl75)
+pdata$bac <- (0.08*pdata$bac08) + (0.10*pdata$bac10)
+```
+
+## Dependent variable analysis
+
+```{r}
+ggplot(pdata,
+     aes(year, totfatrte, group=state, color=state)) +
+  geom_line() +
+  geom_point()
+```
+**Observations**:
+Most states appear to decrease through time overall. A few states, such as state #1, follow extremely chaotic paths. **This could be due to small sample sizes** or to varying policy across years. Other states, such as state #39, seem to experience shocks which persistently increase the number of fatalities in a manner similar to a random walk with trend. This could be due to an increase in population density or other persistent factors.
+
+## xy-plots
+
+```{r, include=FALSE}
+xyplot(totfatrte ~ sl | year, data=pdata, as.table=TRUE)
+xyplot(totfatrte ~ seatbelt, data=pdata, as.table=TRUE)
+xyplot(totfatrte ~ minage | year, data=pdata, as.table=TRUE)
+xyplot(totfatrte ~ zerotol | year, data=pdata, as.table=TRUE)
+xyplot(totfatrte ~ bac | year, data=pdata, as.table=TRUE)
+```
+
+** Observations: **
+
+We can see that as time progresses, laws become stricter, speed limits get lower, seat belt and BAC laws become more stringent. This is associated with a lower per-capita traffic fatality rate in `totfatrte` as these state laws begin to come into effect.
+
+In 1980, many laws we take for granted now were not around. BAC policies were just starting to be implemented. There were no zero-tolerance laws. It was no uncommon to see a minimum drinking age below 21. Also, there was no seatbelt requirement. Accordingly, 1980 experienced the highest traffic fatality rate per 100,000 population.
+
+## Non-policy effects, demographics, and population
+
+```{r, include=FALSE}
+ggplot(pdata,
+     aes(year, statepop, group=state, color=state)) +
+  geom_line() +
+  geom_point()
+
+ggplot(pdata,
+     aes(year, vehicmiles, group=state, color=state)) +
+  geom_line() +
+  geom_point()
+
+ggplot(pdata,
+     aes(year, unem, group=state, color=state)) +
+  geom_line() +
+  geom_point()
+
+
+xyplot(totfatrte ~ statepop | year, data=pdata, as.table=TRUE)
+xyplot(totfatrte ~ vehicmiles | year, data=pdata, as.table=TRUE)
+xyplot(totfatrte ~ unem | year, data=pdata, as.table=TRUE)
+```
+
+** Observations **
+
+Even as state population continues to grow upward, `totfatrte` is not affected. There may be some random effects dependent on time state-to-state which we can model. **Interestingly, states with lower vehicmiles appear to have more per-capita fatalities. This could be due to more urban miles, with higher accident rates, or to inexperienced drivers.**
+
+## What happened during the recession?
+
+```{r, include=FALSE}
+xyplot(totfatrte ~ unem | state, data=pdata, as.table=TRUE)
+```
+
+Within each individual, higher unemployment may be correlated with higher per-capita traffic fatalities. ** Look at what happens to _totfatrte_ in the presence of high unemployment and changing BAC levels.**
+
+# Exercise 2 - Dependent Variable Analysis
+
+**Definition:** `totfatrte` is total fatalities per 100,000 population.
+**Mean per year**: 
+```{r}
+avg_yr = aggregate(totfatrte ~ year, pdata, mean)
+plot(avg_yr)
+```
+
+**Regression on yearly dummy variables**:
+```{r}
+yr.mod <- lm(totfatrte ~ d81+d82+d83+d84+d85+d86+
+               d87+d88+d89+d90+d91+d92+d93+d94+d95+d96+
+               d97+d98+d99+d00+d01+d02+d03+d04,pdata)
+summary(yr.mod)
+```
+The model explains the variance in `totfatrte` attributable to the year in which it was taken. It only gives a single intercept for each year. The value of the intercept is the mean of `totfatrte` in that year minus the base value in 1980. Yes, driving did become safer, if your metric of safer aligns with the definition given above for `totfatrte`, as we can see from both the significance from 0 (indicating significant change from 1980), the sign of each coefficient, and the downward trend in coefficients through time.
+
+# Exercise 3 - Pooled OLS
+
+```{r}
+# Add in necessary transformations
+pdata <- transform(pdata, sl70pp = (sl70 + sl70plus + sl75 + slnone) >= 1)
+
+pm.mod2 <- lm(totfatrte ~ d81+d82+d83+d84+d85+d86+
+               d87+d88+d89+d90+d91+d92+d93+d94+d95+d96+
+               d97+d98+d99+d00+d01+d02+d03+d04+
+               bac08+bac10+perse+sbprim+sbsecon+sl70pp+gdl+
+               perc14_24+log(unem)+vehicmilespc,pdata)
+summary(pm.mod2)
+```
+
+** Transformation **
+
+* `bac` - No transformation **Compare results to Morris**
+* `perse`/`sbprim`/`sbsecon`: No transformation.
+* `sl70plus`: Transformed to include `sl70plus`,`sl70`,`sl75`,`slnone` and stored result in `sl70pp` (SL-70 ProPlus+ (R)). Turned into indicator variable, indicating whenever the sum of these 4 columns is at least 1.
+* `gdl`: No transformation.
+* `perc14_24`: No transformation
+* `unem`: Log transformed to normalize distribution
+* `vehicmilespc`: No transformation
+
+** Model notes **
+
+* *All yearly effects* - still important.
+* *BAC levels* - `bac08` (`bac10`) is defined as the percentage of the year during which a state has enacted a BAC limit of 0.08% (0.10%). A unit increase in `bac08` (`bac10`) results in an expected decrease in `totfatrte` of -2.617 (-1.447). Since both variables have a maximum value at 1, the maxmimum effect on expected value of `totfatrte` due to these variables can grow no larger than -2.617 (-1.447), corresponding to a reduction of 2.617 (1.447) deaths per 100,000 pop.
+* *Per Se laws* - Does not appear significant at this time. Change in `perse` by one unit (the maximum) effects a change of -0.5386 in the expected number of traffic fatalities per 100,000 pop.
+* *Seatbelt laws* - Do not appear to be statistically significantly different from 0 in this model. The estimated coefficients on each of the seatbelt coefficients is negative, indicating an expected reduction in the expected number of traffic fatalities per 100,000 pop for better seatbelt laws.
+
+** Observations **
+`sbsecon` appears more prevalent than `sbprim`...
+```{r}
+sbp <- aggregate(sbprim ~ year, pdata, sum)
+sbs <- aggregate(sbsecon ~ year, pdata, sum)
+
+ggplot(cbind(sbp,sbs$sbsecon), aes(x=year,y=sbprim,fill=sbs$sbsecon))+
+  geom_bar(stat='identity') +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .4))
+```
+
+
+# Exercise 4 - Fixed Effects
+```{r}
+fe.1 <- plm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + 
+    d87 + d88 + d89 + d90 + d91 + d92 + d93 + d94 + d95 + d96 + 
+    d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04 +
+    bac08 + bac10 + perse + sbprim + sbsecon + sl70pp + gdl+
+    perc14_24 + log(unem) + vehicmilespc, pdata, model = 'within')
+summary(fe.1)
+```
+
+The coefficients of the fixed-effects model does not differ from the pooled OLS model. As such, it does not matter which model we choose coefficients from. In the pooled OLS model, we need all the assumptions of the classical linear model, which in the case of repeated observations from the same individual are clearly not satisfied. In the fixed-effects model, we only require that our idiosyncratic error is not correlated to our explanatory variables. This is much more reasonable, since this would require an additional source of correlation between the composite error for the observation and the explanatory variables outside of the information included in the fixed effect, which does not vary in time.
+
+# Exercise 5 - Random Effects
+
+We will estimate a random effects model and judge its suitability.
+
+```{r}
+# Statistical tests for judging suitability of random-effects model
+pdata$lenum <- log(pdata$unem)
+#
+#re.1 <- lmer(totfatrte ~ 1 + (1|bac08) + (1|bac10) + (1|perse) + #(1|sbprim) + (1|sbsecon) + (1|sl70pp) + (1|gdl)+(1|perc14_24) + #(1|lenum) + (1|vehicmilespc),
+#             pdata)
+#
+#pbgtest(re.1)
+```
+
+Assigning random effects to continuous variables is not possible (https://www.researchgate.net/post/Can_random_effects_apply_continuous_variables), and so my approach is not valid here.
+
+# Exercise 6 - Coefficient Interpretation
+
+An increase in one unit of vehicle miles traveled per capita (`vehicmilespc`) results in an expected increase of .0029280 in the response variable. `(0.0029280*1000)` = an expected increase of **2.9280** in traffic fatalities per 100,000 pop for an increase in 1,000 vehicle miles traveled per capita.
+
+# Exercise 7 - Violated Assumptions
+

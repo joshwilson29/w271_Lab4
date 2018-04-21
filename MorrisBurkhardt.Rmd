@@ -341,7 +341,7 @@ By specifiying a Fixed Effects Model, we account for the time invariant unobserv
 fe1 = plm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 + d91 + 
           d92 + d93 + d94 + d95 + d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04 + 
           bac08 + bac10 + perse + sbprim + sbsecon + gdl + perc14_24 + log(unem) + 
-          vehicmilespc, data = data, model = 'within', index = c('state', 'year'))
+          vehicmilespc, data = data, model = 'within', index = c('state'))
 summary(fe1)
 ```
 
@@ -363,6 +363,11 @@ perse        -1.2151e+00  2.3232e-01  -5.2300 2.022e-07 ***
 sbprim       -1.1696e+00  3.4259e-01  -3.4140 0.0006632 ***
 
 
+```{r}
+fixef(fe1)
+```
+
+
 # Question 5:
 5. Would you perfer to use a random effects model instead of the fixed effects model you build in *Exercise 4*? Why? Why not?
 
@@ -372,13 +377,13 @@ To determine wheter or not a random effects model should be used instead of the 
 re1 = plm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 + d91 + 
           d92 + d93 + d94 + d95 + d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04 + 
           bac08 + bac10 + perse + sbprim + sbsecon + gdl + perc14_24 + log(unem) + 
-          vehicmilespc, data = data, model = 'random', index = c('state', 'year'))
+          vehicmilespc, data = data, model = 'random', index = c('state'))
 phtest(fe1, re1)
 ```
 
 We reject the null hypothesis with a highly statistically significant p-value. The Hausman Test therfore suggests to use the Fixed Effects model.
 
-Since furthermore none of our explanatory variables are constant over time and we have reason to believe that it is very likely that the explanatory variables are correlated with the unobserved/fixed effect (ToDo: Examples!!!), we believe that the Fixed Effects Model is the better model for our scenario.
+Since furthermore none of our explanatory variables are constant over time and we have reason to believe that it is very likely that the explanatory variables are correlated with the unobserved/fixed effect state, we believe that the Fixed Effects Model is the better model for our scenario.
 
 
 6. Suppose that *vehicmilespc*, the number of miles driven per capita, increases by 1,000. Using the FE estimates, what is the estimated effect on totfatrte? Be sure to interpret the estimate as if explaining to a layperson.

@@ -1,0 +1,265 @@
+---
+title: "Statistical Methods for Discrete Response, Time Series, and Panel Data (W271): Lab 4"
+author: "Professor Josh Wilson"
+date: "April 22, 2018"
+output:
+  pdf_document: default
+---
+
+
+```{r Packages}
+#install.packages("luridate")
+
+packages <- c('lme4', 'ggplot2', 'dplyr', 'psych', 'lattice', 'plm')
+
+# Installs all of the packages
+lapply(packages, require, character.only = TRUE)
+
+# Removing package variable
+rm(packages)
+```
+
+# Description of the Lab
+
+In this lab, you are asked to answer the question **"Do changes in traffic laws affect traffic fatalities?"**  To do so, you will conduct the tasks specified below using the data set *driving.Rdata*, which includes 25 years of data that cover changes in various state drunk driving, seat belt, and speed limit laws. 
+
+Specifically, this data set contains data for the 48 continental U.S. states from 1980 through 2004. Various driving laws are indicated in the data set, such as the alcohol level at which drivers are considered legally intoxicated. There are also indicators for “per se” laws—where licenses can be revoked without a trial—and seat belt laws. A few economics and demographic variables are also included. The description of the each of the variables in the dataset is come with the dataste.
+
+**Exercises:**
+
+1. Load the data. Provide a description of the basic structure of the dataset, as we have done in throughout the semester. Conduct a very thorough EDA, which should include both graphical and tabular techniques, on the dataset, including both the dependent variable *totfatrte* and the potential explanatory variables. You need to write a detailed narrative of your observations of your EDA. *Reminder: giving an "output dump" (i.e. providing a bunch of graphs and tables without description and hoping your audience will interpret them) will receive zero point in this exercise.*
+
+```{r Data Load}
+setwd('C:\\Users\\wilsonjo')
+attach('driving.RData')
+dt <- data
+```
+
+year	1980 through 2004			
+state	48 continental states, alphabetical			
+sl55	speed limit == 55			
+sl65	speed limit == 65			
+sl70	speed limit == 70			
+sl75	speed limit == 75			
+slnone	no speed limit			
+seatbelt	=0 if none, =1 if primary, =2 if secondary			
+minage	minimum drinking age			
+zerotol	zero tolerance law
+gdl	graduated drivers license law			
+bac10	blood alcohol limit .10			
+bac08	blood alcohol limit .08			
+perse	administrative license revocation (per se law)			
+totfat	total traffic fatalities			
+nghtfat	total nighttime fatalities			
+wkndfat	total weekend fatalities			
+totfatpvm	total fatalities per 100 million miles			
+nghtfatpvm	nighttime fatalities per 100 million miles			
+wkndfatpvm	weekend fatalities per 100 million miles
+statepop	state population			
+totfatrte	total fatalities per 100,000 population			
+nghtfatrte	nighttime fatalities per 100,000 population			
+wkndfatrte	weekend accidents per 100,000 population			
+vehicmiles	vehicle miles traveled, billions			
+unem	unemployment rate, percent			
+perc14_24	percent population aged 14 through 24			
+sl70plus	sl70 + sl75 + slnone			
+sbprim	=1 if primary seatbelt law			
+sbsecon	=1 if secondary seatbelt law
+d80	=1 if year == 1980
+
+- Using the describe function shows us that there are no missing data points
+- We also see the basic structure of the variables. There are no factor variables. States have all been coded.
+
+```{r EDA}
+describe(dt)
+
+# shows decline in totfatrte over the years
+ggplot(data = dt, aes(x = year, y = totfatrte)) + geom_point(alpha = 0.3) + geom_smooth()
+
+# does minimum drinking age matter? Relatively convincing evidence that higher drinking age, lower fatalities
+ggplot(data = dt, aes(x = minage, y = totfatrte)) +geom_point() + geom_smooth()
+
+# does bac level?
+ggplot(data = dt, aes(totfatrte ~ bac1))
+
+# variation across states, regardless of year? ugly but a ton of variation by state
+ggplot(data = dt, aes(x = as.factor(state), y = totfatrte)) + geom_boxplot()
+
+#driving by state
+ggplot(data = dt, aes(x = as.factor(state), y = vehicmiles)) + geom_boxplot()
+
+#zero tolerance law 
+dt$binzt <- ifelse(dt$zerotol >= 0.5, 1, 0)
+ggplot(data = dt, aes(x = as.factor(binzt), y = totfatrte)) + geom_boxplot()
+dt$zerotol
+
+
+# It is pretty easy to see that zero tolerance laws were slowly adopted by all states.
+dt %>% group_by(year) %>% summarise(zerotol = mean(zerotol))
+
+# Let's look at early adopters: not as much evidence
+
+dt_before90 <- select(filter(dt, year <= 1990),c(year:binzt))
+ggplot(data = dt_before90, aes(x = as.factor(binzt), y = totfatrte)) + geom_boxplot()
+```
+
+
+```{r}
+
+glimpse(dt)
+# these vaariables are required in question 3, so let's look at them:
+# bac08, bac10, perse, sbprim, sbsecon, sl70plus, gdl, perc14_24, unem, vehicmilespc*
+
+#splom(dt[c("totfatrte", "bac08", "bac10", "perse", "sbprim", "sbsecon")])
+
+ggplot(data = dt, aes(x = as.factor(cut(dt$bac08,2)), y = totfatrte)) + geom_boxplot()
+
+ggplot(data = dt, aes(x = as.factor(cut(dt$bac10,2)), y = totfatrte)) + geom_boxplot()
+
+ggplot(data = dt, aes(x = as.factor(cut(dt$perse,2)), y = totfatrte)) + geom_boxplot()
+
+ggplot(data = dt, aes(x = as.factor(sbprim), y = totfatrte)) + geom_boxplot()
+
+ggplot(data = dt, aes(x = as.factor(sbsecon), y = totfatrte)) + geom_boxplot()
+
+ggplot(data = dt, aes(x = as.factor(cut(dt$perse,4)), y = totfatrte)) + geom_boxplot()
+
+ggplot(data = dt, aes(x = as.factor(cut(dt$gdl,2)), y = totfatrte)) + geom_boxplot()
+
+ggplot(data = dt, aes(x = perc14_24, y = totfatrte)) + geom_point() + geom_smooth()
+
+ggplot(data = dt, aes(x = unem, y = totfatrte)) + geom_point() + geom_smooth()
+
+# Mean over time for various variables
+
+x <- dt %>% group_by(year) %>% summarise(mean_bac08 = mean(bac08)
+                                    ,mean_bac10 = mean(bac10)
+                                    ,mean_perse = mean(perse)
+                                    ,mean_sbprim = mean(sbprim)
+                                    ,mean_sbsecon = mean(sbsecon)
+                                    ,mean_gdl = mean(gdl)
+                                    ,mean_perc = mean(perc14_24)
+                                    ,mean_unem = mean(unem)
+                                    ,mean_totfatre = mean(totfatrte)
+                                    )
+
+# We see a decreasing trend, no apparent cyclicality
+ggplot(data = x, aes(x = year, y = mean_unem)) + geom_line()
+
+# The % of the population that is between the ages of 14 and 24 decreases steadily until 1992 after which it steadies out
+ggplot(data = x, aes(x = year, y = mean_perc)) + geom_line()
+
+# Graduated license law was non existent until 1996. Then somewhat linear increase over the rest. Possible binning?
+ggplot(data = x, aes(x = year, y = mean_gdl)) + geom_line()
+
+# Before 1984, there were no secondary seatbelt laws, then an explosion, and a recession. potential for three bins?
+ggplot(data = x, aes(x = year, y = mean_sbsecon)) + geom_line()
+
+# Before 1984 there were essentially no primary seatbelt laws, then we have a discontinuous jump, then a relatively linear increase
+ggplot(data = x, aes(x = year, y = mean_sbprim)) + geom_line()
+
+# Somewhat nonlinear increase over time, monotonic
+ggplot(data = x, aes(x = year, y = mean_perse)) + geom_line()
+
+# 
+ggplot(data = x, aes(x = year, y = mean_bac10)) + geom_line()
+
+
+ggplot(data = x, aes(x = year, y = mean_bac08)) + geom_line()
+
+#
+ggplot(data = x, aes(x = mean_unem, y = mean_totfatre, colour = year)) + geom_point()
+
+
+ggplot(data = x, aes(x = mean_perc, y = mean_totfatre, colour = year)) + geom_point() + geom_smooth()
+
+ggplot(data = x, aes(x = mean_sbsecon, y = mean_totfatre, colour = year)) + geom_point() + geom_smooth()
+ggplot(data = dt, aes(x = sbsecon, y = totfatrte)) + geom_point() + geom_smooth()
+
+
+ggplot(data = x, aes(x = mean_bac08, y = mean_totfatre, colour = year)) + geom_point() + geom_smooth()
+
+ggplot(data = x, aes(x = mean_bac10, y = mean_totfatre, colour = year)) + geom_point() + geom_smooth()
+
+```
+
+
+
+
+2. How is the our dependent variable of interest *totfatrte* defined? What is the average of this variable in each of the years in the time period covered in this dataset? Estimate a very simple regression model of totfatrte on dummy variables for the years 1981 through 2004. What does this model explain? Describe what you find in this model. Did driving become safer over this period? Please provide a detailed explanation.
+
+totfatrte	total fatalities per 100,000 population.
+
+```{r}
+dt %>% group_by(year) %>% summarise(mean_totfatrte = mean(totfatrte))
+
+mod1 <- lm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 +
+             d91 + d92 + d93 + d94 + d95 + d96 + d97 + d98 + d99 + d00 + d01 +
+             d02 + d03 + d04, data = dt
+           )
+
+
+summary(mod1)
+plot(mod1)
+```
+
+The dependent variable (totfatrte) is	total fatalities per 100,000 population.
+
+The model explains the average difference in the yearly fatalities as compared to the baseline year of 1980; this perspective pools the states by year. Essentially, this model construction allows for varying intercepts for each year, meaning we can model differences in the distributions year-over-year. Every subsequent year after 1980 shows an average decrease in our dependent variables, with later years showing greater decreases. As there are no other explanatory variables in this model, the year variables are capturing variability that might come from new laws being enacted, improvements in car safety technology, and other factors related to the rise and fall of total vehicular fatalities. From the individual t-tests, nearly all of the years are significantly different from 1980, with the exception of 1981. Therefore, it is unsuprising to see that the F test is also significant. In order to determine whether this is an appropriate model for our task, we would want to check whether the variance in error changes over time. Regardless, this model is likely to suffer from omitted variable bias, as we have very few variables that are time-varying.
+
+
+3. Expand your model in *Exercise 2* by adding variables *bac08, bac10, perse, sbprim, sbsecon, sl70plus, gdl, perc14_24, unem, vehicmilespc*, and perhaps *transformations of some or all of these variables*. Please explain carefully your rationale, which should be based on your EDA, behind any transformation you made. If no transformation is made, explain why transformation is not needed. How are the variables *bac8* and *bac10* defined? Interpret the coefficients on *bac8* and *bac10*. Do *per se laws* have a negative effect on the fatality rate? What about having a primary seat belt law? (Note that if a law was enacted sometime within a year the fraction of the year is recorded in place of the zero-one indicator.)
+
+
+```{r}
+
+mod2 <- lm(totfatrte ~ bac08 + bac10 + perse + sbprim + sbsecon + sl70plus +
+             gdl + perc14_24 + unem + vehicmilespc + d81 + d82 + d83 + d84 +
+             d85 + d86 + d87 + d88 + d89 + d90 +d91 + d92 + d93 + d94 + d95 +
+             d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04, data = dt
+           )
+
+
+summary(mod2)
+```
+
+
+
+
+
+4. Reestimate the model from *Exercise 3* using a fixed effects (at the state level) model. How do the coefficients on *bac08, bac10, perse, and sbprim* compare with the pooled OLS estimates? Which set of estimates do you think is more reliable? What assumptions are needed in each of these models?  Are these assumptions reasonable in the current context?
+
+```{r}
+
+fe_mod <- plm(totfatrte ~ bac08 + bac10 + perse + sbprim + sbsecon + sl70plus +
+             gdl + perc14_24 + unem + vehicmilespc + d81 + d82 + d83 + d84 +
+             d85 + d86 + d87 + d88 + d89 + d90 +d91 + d92 + d93 + d94 + d95 +
+             d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04, index = "state",
+             data = dt, model = "within"
+           )
+
+summary(fe_mod)
+fixef(fe_mod)
+```
+
+
+5. Would you perfer to use a random effects model instead of the fixed effects model you build in *Exercise 4*? Why? Why not?
+
+We would prefer to use the fixed effects model due to the correlation between the state variable and the other explanatory variables. If we were to use a random effects model, we would be assuming that the state variable and the other explanatory variables are uncorrelated. The result would be a model that produces biased OLS estimates.
+
+6. Suppose that *vehicmilespc*, the number of miles driven per capita, increases by 1,000. Using the FE estimates, what is the estimated effect on totfatrte? Be sure to interpret the estimate as if explaining to a layperson.
+
+7. If there is serial correlation or heteroskedasticity in the idiosyncratic errors of the model, what would be the consequences on the coefficient estimates and their standard errors?
+
+
+
+
+
+
+
+
+
+
+
+
+

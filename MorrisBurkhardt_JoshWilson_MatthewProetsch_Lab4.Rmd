@@ -1,194 +1,318 @@
 ---
-title: "W271 Lab 04"
-author: "Morris Burkhardt, Josh Wilson, Matt Proetsch"
+title: "W271: Lab 4"
+author: "Morris Burkhardt/group"
 date: "April 22, 2018"
-output: pdf_document
+geometry: margin = 1.3 cm
+fontsize: 10 pt
+output:
+  pdf_document: default
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_knit$set(root.dir='C:/Users/Matt/Documents/Courses/W271/lab4/Lab4_2018Spring_2/')
-setwd('C:/Users/Matt/Documents/Courses/W271/lab4/Lab4_2018Spring_2/')
+```{r message=FALSE, warning=FALSE}
+library(ggplot2); library(dplyr); library(lme4); library(Hmisc); library(plm); library(gridExtra)
 ```
 
-```{r message=FALSE, results='hide', warning=FALSE}
-for (l in c('stargazer','ggplot2','car','plm','lattice')){library(l,character.only=T)}
-library(ggplot2)
-```
-
-# Introduction
-
-... TBD
-
-# Exercise 1 - Exploratory Data Analysis
-
-```{r load}
-load('driving.Rdata')
-sum(xtabs(~ state, data=data) == 25) == 48  # Verify all 48 states have 25 years of data
-pdata <- pdata.frame(data, c('state','year'))
-```
-
-## Variable creation:
-```{r}
-pdata$sl <- (55*pdata$sl55) + (65*pdata$sl65) + (70*pdata$sl70) + (75*pdata$sl75)
-pdata$bac <- (0.08*pdata$bac08) + (0.10*pdata$bac10)
-```
-
-## Dependent variable analysis
+# Question 1.
 
 ```{r}
-ggplot(pdata,
-     aes(year, totfatrte, group=state, color=state)) +
-  geom_line() +
-  geom_point()
-```
-**Observations**:
-Most states appear to decrease through time overall. A few states, such as state #1, follow extremely chaotic paths. **This could be due to small sample sizes** or to varying policy across years. Other states, such as state #39, seem to experience shocks which persistently increase the number of fatalities in a manner similar to a random walk with trend. This could be due to an increase in population density or other persistent factors.
-
-## xy-plots
-
-```{r, include=FALSE}
-xyplot(totfatrte ~ sl | year, data=pdata, as.table=TRUE)
-xyplot(totfatrte ~ seatbelt, data=pdata, as.table=TRUE)
-xyplot(totfatrte ~ minage | year, data=pdata, as.table=TRUE)
-xyplot(totfatrte ~ zerotol | year, data=pdata, as.table=TRUE)
-xyplot(totfatrte ~ bac | year, data=pdata, as.table=TRUE)
+load('driving.RData')
+head(data, 2); #tail(data); #summary(data); #str(data)
 ```
 
-** Observations: **
+First, we looked at the head, tail, summary and str of the data to get an idea of the data set (partially not displayed here).
 
-We can see that as time progresses, laws become stricter, speed limits get lower, seat belt and BAC laws become more stringent. This is associated with a lower per-capita traffic fatality rate in `totfatrte` as these state laws begin to come into effect.
+The given data set is a longitudinal data set. It consists of the data of the 48 continental states over the time period from 1980 to 2004. 
 
-In 1980, many laws we take for granted now were not around. BAC policies were just starting to be implemented. There were no zero-tolerance laws. It was no uncommon to see a minimum drinking age below 21. Also, there was no seatbelt requirement. Accordingly, 1980 experienced the highest traffic fatality rate per 100,000 population.
+The data set has the following 56 variables:
 
-## Non-policy effects, demographics, and population
+- year = year of observation; integer; ranges from 1980 to 2004
 
-```{r, include=FALSE}
-ggplot(pdata,
-     aes(year, statepop, group=state, color=state)) +
-  geom_line() +
-  geom_point()
+- state = state; integer; ranges from 1 to 51 (missing 2, 9 and 12: Alaska, Hawai and D.C.)
 
-ggplot(pdata,
-     aes(year, vehicmiles, group=state, color=state)) +
-  geom_line() +
-  geom_point()
+- sl55, sl65, sl70, sl75, slnone = speed limit 55, 65, 70, 75 and non respectively; decimal; fraction of year; all these five variables sum up to 1
 
-ggplot(pdata,
-     aes(year, unem, group=state, color=state)) +
-  geom_line() +
-  geom_point()
+- seatbelt = indicates what type of seatbelt law was inplace: no seatbelt law (=0), primary seatbelt law (=1), secondary seatbelt law (=2); integer; ranges from 0 to 2
 
+- minage = minimum drinking age; decimal; weighted yearly minimum drinking age; ranges from 18 to 21
 
-xyplot(totfatrte ~ statepop | year, data=pdata, as.table=TRUE)
-xyplot(totfatrte ~ vehicmiles | year, data=pdata, as.table=TRUE)
-xyplot(totfatrte ~ unem | year, data=pdata, as.table=TRUE)
-```
+- zerotol = zero tolerance law; decimal; fraction of year for which a zero tolerance was in place 
 
-** Observations **
+- gdl = graduated driver license law; decimal; fraction of year for which a gdl law was in place
 
-Even as state population continues to grow upward, `totfatrte` is not affected. There may be some random effects dependent on time state-to-state which we can model. **Interestingly, states with lower vehicmiles appear to have more per-capita fatalities. This could be due to more urban miles, with higher accident rates, or to inexperienced drivers.**
+- bac10, bac08 = blood alcohol limit of 0.1, 0.08 respectively; decimal; fraction of year for which each limit was in place
 
-## What happened during the recession?
+- perse = per se law; decimal; fraction of year for which a per se law was in place
 
-```{r, include=FALSE}
-xyplot(totfatrte ~ unem | state, data=pdata, as.table=TRUE)
-```
+- totfat, nghtfat, wkndfat = integer
 
-Within each individual, higher unemployment may be correlated with higher per-capita traffic fatalities. ** Look at what happens to _totfatrte_ in the presence of high unemployment and changing BAC levels.**
+- totfatpvm, nghtfatpvm, wkndfatpvm = total, nighttime, weekend fatalities, respectively; integer
 
-# Exercise 2 - Dependent Variable Analysis
+- statepop = state population; integer
 
-**Definition:** `totfatrte` is total fatalities per 100,000 population.
-**Mean per year**: 
-```{r}
-avg_yr = aggregate(totfatrte ~ year, pdata, mean)
-plot(avg_yr)
-```
+- totfatrte, nghtfatrte, wkndfatrte = total, nighttime and weekend fatalities per 100,000 population, respectively; decimal
 
-**Regression on yearly dummy variables**:
-```{r}
-yr.mod <- lm(totfatrte ~ d81+d82+d83+d84+d85+d86+
-               d87+d88+d89+d90+d91+d92+d93+d94+d95+d96+
-               d97+d98+d99+d00+d01+d02+d03+d04,pdata)
-summary(yr.mod)
-```
-The model explains the variance in `totfatrte` attributable to the year in which it was taken. It only gives a single intercept for each year. The value of the intercept is the mean of `totfatrte` in that year minus the base value in 1980. Yes, driving did become safer, if your metric of safer aligns with the definition given above for `totfatrte`, as we can see from both the significance from 0 (indicating significant change from 1980), the sign of each coefficient, and the downward trend in coefficients through time.
+- vehicmiles = billion vehicle miles traveled; decimal
 
-# Exercise 3 - Pooled OLS
+- unem = unemployment rate in percent; decimal; ranges from 2.2 to 18
+
+- per14_24 = percentage of population aged 14 through 24; decimal; ranges from 11.7 to 20.3
+
+- sl70plus = sum of the sl70, sl75 and slnone variables; decimal; fraction of year
+
+- sbprim, sbsecon = primary, secondary seatbelt law respectively; dummy encoding of seatbelt variable
+
+- d80, d81, ..., d04 = year 1980, year 1981,... year 2004 respectively; dummy encoding of year variable
+
+- vehiclemilespc = vehicle miles per capita; decimal
+
+Let us check if our panel is balanced:
 
 ```{r}
-# Add in necessary transformations
-pdata <- transform(pdata, sl70pp = (sl70 + sl70plus + sl75 + slnone) >= 1)
-
-pm.mod2 <- lm(totfatrte ~ d81+d82+d83+d84+d85+d86+
-               d87+d88+d89+d90+d91+d92+d93+d94+d95+d96+
-               d97+d98+d99+d00+d01+d02+d03+d04+
-               bac08+bac10+perse+sbprim+sbsecon+sl70pp+gdl+
-               perc14_24+log(unem)+vehicmilespc,pdata)
-summary(pm.mod2)
+min(table(data$state)); max(table(data$state))
 ```
 
-** Transformation **
-
-* `bac` - No transformation **Compare results to Morris**
-* `perse`/`sbprim`/`sbsecon`: No transformation.
-* `sl70plus`: Transformed to include `sl70plus`,`sl70`,`sl75`,`slnone` and stored result in `sl70pp` (SL-70 ProPlus+ (R)). Turned into indicator variable, indicating whenever the sum of these 4 columns is at least 1.
-* `gdl`: No transformation.
-* `perc14_24`: No transformation
-* `unem`: Log transformed to normalize distribution
-* `vehicmilespc`: No transformation
-
-** Model notes **
-
-* *All yearly effects* - still important.
-* *BAC levels* - `bac08` (`bac10`) is defined as the percentage of the year during which a state has enacted a BAC limit of 0.08% (0.10%). A unit increase in `bac08` (`bac10`) results in an expected decrease in `totfatrte` of -2.617 (-1.447). Since both variables have a maximum value at 1, the maxmimum effect on expected value of `totfatrte` due to these variables can grow no larger than -2.617 (-1.447), corresponding to a reduction of 2.617 (1.447) deaths per 100,000 pop.
-* *Per Se laws* - Does not appear significant at this time. Change in `perse` by one unit (the maximum) effects a change of -0.5386 in the expected number of traffic fatalities per 100,000 pop.
-* *Seatbelt laws* - Do not appear to be statistically significantly different from 0 in this model. The estimated coefficients on each of the seatbelt coefficients is negative, indicating an expected reduction in the expected number of traffic fatalities per 100,000 pop for better seatbelt laws.
-
-** Observations **
-`sbsecon` appears more prevalent than `sbprim`...
-```{r}
-sbp <- aggregate(sbprim ~ year, pdata, sum)
-sbs <- aggregate(sbsecon ~ year, pdata, sum)
-
-ggplot(cbind(sbp,sbs$sbsecon), aes(x=year,y=sbprim,fill=sbs$sbsecon))+
-  geom_bar(stat='identity') +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .4))
-```
-
-
-# Exercise 4 - Fixed Effects
-```{r}
-fe.1 <- plm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + 
-    d87 + d88 + d89 + d90 + d91 + d92 + d93 + d94 + d95 + d96 + 
-    d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04 +
-    bac08 + bac10 + perse + sbprim + sbsecon + sl70pp + gdl+
-    perc14_24 + log(unem) + vehicmilespc, pdata, model = 'within')
-summary(fe.1)
-```
-
-The coefficients of the fixed-effects model does not differ from the pooled OLS model. As such, it does not matter which model we choose coefficients from. In the pooled OLS model, we need all the assumptions of the classical linear model, which in the case of repeated observations from the same individual are clearly not satisfied. In the fixed-effects model, we only require that our idiosyncratic error is not correlated to our explanatory variables. This is much more reasonable, since this would require an additional source of correlation between the composite error for the observation and the explanatory variables outside of the information included in the fixed effect, which does not vary in time.
-
-# Exercise 5 - Random Effects
-
-We will estimate a random effects model and judge its suitability.
+Each of the 48 states has exactly 25 observations across time, which means that our panel is balanced. Next, let us check for missing data.
 
 ```{r}
-# Statistical tests for judging suitability of random-effects model
-pdata$lenum <- log(pdata$unem)
-#
-#re.1 <- lmer(totfatrte ~ 1 + (1|bac08) + (1|bac10) + (1|perse) + #(1|sbprim) + (1|sbsecon) + (1|sl70pp) + (1|gdl)+(1|perc14_24) + #(1|lenum) + (1|vehicmilespc),
-#             pdata)
-#
-#pbgtest(re.1)
+sum(is.na(data))
 ```
 
-Assigning random effects to continuous variables is not possible (https://www.researchgate.net/post/Can_random_effects_apply_continuous_variables), and so my approach is not valid here.
+There is no missing data in our data set. Next, we will display the variables we will be using in our model graphically. For the totfartre, perc14_24, vehicmilespc and unem variable, we plot a line for every state over the course of all the years and for the seatbelt, gdl, zerotol, perse, bacXX and slXX variables we create scatter plots (with jitter) that display the distribution accross the different states for every year. To better display the data, we created a combined blood alcohol limit and speed limit variable.
 
-# Exercise 6 - Coefficient Interpretation
+```{r, fig.height = 16, fig.width = 12}
+plot1 = ggplot(data = data, aes(x = year, y = totfatrte, group = state)) + 
+  geom_line(alpha=0.5) + ggtitle("total fatality rate")
+plot2 = ggplot(data = data, aes(x = year, y = perc14_24, group = state)) + 
+  geom_line(alpha=0.5) + ggtitle("percentage of population between 14 - 24")
+plot3 = ggplot(data = data, aes(x = year, y = vehicmilespc, group = state)) + 
+  geom_line(alpha=0.5) + ggtitle("vehicle miles traveled per capita")
+plot4 = ggplot(data = data, aes(x = year, y = unem, group = state)) + 
+  geom_line(alpha=0.5) + ggtitle("unemployment rate")
+plot5 = ggplot(data = data, aes(x = year, y = seatbelt, group = state)) + 
+  ggtitle("seatbelt law (0 = none, 1 = primary offense, 2 = secondary offense)") + 
+  geom_jitter(width = 0.2, height = 0.2)
+plot6 = ggplot(data = data, aes(x = year, y = gdl, group = state)) + 
+  ggtitle("graduate drivers license law") + geom_jitter(width = 0.25, height = 0.1)
+plot7 = ggplot(data = data, aes(x = year, y = zerotol, group = state)) + 
+  ggtitle("zero tolerance law") + geom_jitter(width = 0.25, height = 0.1)
+plot8 = ggplot(data = data, aes(x = year, y = perse, group = state)) + 
+  ggtitle("administrative license revocation (per se law)") + 
+  geom_jitter(width = 0.25, height = 0.1)
+# Create blood alcohol limit variable for law that was valid for the majority of the year.
+data$baccombined = ifelse(round(data$bac10) > 0, 0.1, 0.08 * round(data$bac08))
+plot9 = ggplot(data = data, aes(x = year, y = baccombined, group = state)) + 
+  ggtitle("blood alcohol limit for majority of each year") + 
+  geom_jitter(width = 0.25, height = 0.005)
+# Create speed limit variable.
+data$slcombined = ifelse(round(data$sl55) > 0, 55, ifelse(round(data$sl65) > 0, 65,
+                         ifelse(round(data$sl70) > 0, 70, ifelse(round(data$sl75) > 0, 75, 99))))
+plot10 = ggplot(data = data, aes(x = year, y = slcombined, group = state)) + 
+  ggtitle("speed limit for majority of each year") + geom_jitter(width = 0.25, height = 1)
+grid.arrange(plot1, plot2, plot3, plot4, plot5, plot6, 
+             plot7, plot8, plot9, plot10, ncol=2)
+```
 
-An increase in one unit of vehicle miles traveled per capita (`vehicmilespc`) results in an expected increase of .0029280 in the response variable. `(0.0029280*1000)` = an expected increase of **2.9280** in traffic fatalities per 100,000 pop for an increase in 1,000 vehicle miles traveled per capita.
+For every state, the total fatality rate sank between 1980 and about 1995. Especially in the early eighties there seems to be a steep fall off in the fatality rate. It looks like after 1995 the total fatality rate remained roughly the same for every state. 
 
-# Exercise 7 - Violated Assumptions
+For 47 out of the 48 continental states under study, the percentage of population between 14 and 24 sank rapidly (from roughly 18% to roughly 14%) between 1980 and and 1990. After that the percentage remained roughly the same.
+
+The vehicle miles traveled per capita increased continuously over the years from 1980 to 2004. There is a strong positive linear trend for each of the states.
+
+The unemployment rate briefly went up in the early eighties and then immediately decreased until the late eighties. In the early nineties the unemployment rate once again increased briefly (on a lower level than before), sank again until around 2000, where it reached its lowest point, before it slightly increase again in the early 00s. It looks like it started decreasing again around 2003.
+
+The first seatbelt laws were implemented in 1985 and by 1995, all but one state had either a primary or secondary offence seatbelt law in place. The distribution remained the same until 2004 (still one state had not implemented a seatbelt law).
+
+Up until the mid 90s, no state had a graduate drivers licence law in place. States began implementing the law in the mid 90s and by 2004, about 80% of all states had implemented a graduate drivers licence law.
+
+In the early 80s, no state had a zero tolerance law in place. The first states that implemented a zero tolerance law did so in the mid 80s. The number of states with zero tolerance laws gradually increased and by the 1998, all states had a zero tolerance law in place. 
+
+The minimum drinking age was between 18 and 21 until the mid 80s, when all states implemented a minimum drinking age of 21.
+
+Per se laws were introduced in the early 80 and the amount of states that had per se laws in place increased gradually. By 2004, almost all states had per se laws implemented.
+
+Blood alcohol limit was either 0 or 0.1 in the early 80s. In the mid 80s, they were reduced to 0.08 and more states that had zero as limit set it to 0.08. In 2004 almost all states had a blood alcohol limit of 0.08.
+
+For all states, the speed limits were increased with time. In 1980, all states had a speed limit of 55, wherease by 2004 all states had a speed limit of at least 65, with a substantial number of states having speed limits above. 
+
+Next, we take a look at histograms for the non-dummy and non-'fraction of the year' variables that we will be using in our models.
+
+```{r, fig.height = 4}
+hist(data[c('totfatrte','unem','perc14_24','vehicmilespc')])
+```
+
+All of these variables are at least a little bit skewed and we will be discussing possible transformation of those in question 3.
+
+ToDo: Remove??? Next, let us take a look at linear correlations between all the non-dummy variables we will be using in our model. Makes no sense for longitudinal data - right?
+
+```{r}
+cor(data[c('totfatrte','unem','perc14_24','vehicmilespc','bac08','bac10','perse','sbprim','sbsecon','gdl')])
+```
+
+# Question 2:
+
+The totfarte variable holds the total fatalities per 100,000 population.
+
+```{r}
+df_mean_totfarte = data.frame(aggregate(data$totfatrte, by = list(data$year), mean))
+colnames(df_mean_totfarte) <- c("year", "mean_totfarte")
+df_mean_totfarte
+```
+
+We specify 1980 as the base year and fit the following linear regression model:
+
+\begin{equation*}
+\begin{aligned}
+totfatrte =& \beta_0 + \beta_1 \cdot d_{81} + \beta_2 \cdot d_{82} + \beta_3 \cdot d_{83} + \beta_4 \cdot d_{84} + \beta_5 \cdot d_{85} + \beta_6 \cdot d_{86} + \beta_7 \cdot d_{87} + \beta_8 \cdot d_{88} + \beta_9 \cdot d_{89} \\
+      & + \beta_{10} \cdot d_{90} + \beta_{11} \cdot d_{91} + \beta_{12} \cdot d_{92} + \beta_{13} \cdot d_{93} + \beta_{14} \cdot d_{94} + \beta_{15} \cdot d_{95} + \beta_{16} \cdot d_{96} + \beta_{17} \cdot d_{97}\\
+      &  + \beta_{18} \cdot d_{98} + \beta_{19} \cdot d_{99} + \beta_{20} \cdot d_{00} + \beta_{21} \cdot d_{01} + \beta_{22} \cdot d_{02} + \beta_{23} \cdot d_{03} + \beta_{24} \cdot d_{04} 
+\end{aligned}
+\end{equation*}
+
+```{r}
+lm1 = lm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 + d91 +
+         d92 + d93 + d94 + d95 + d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04, 
+         data = data)
+summary(lm1)
+```
+
+All parameter estimates except the one for 1981 are highly statistically significant. 
+
+This model explains exactly what was calculated in the aggregation above. If we add any of the above estimated dummy parameters to the intercept, we receive the mean totfatrte value for the respective year. Below, we show this for three randomly selected years.
+
+```{r}
+set.seed(999)
+results = data.frame()
+for (i in 1:25) {
+  mean_value_lm1 = ifelse(i==1, lm1$coefficients[1], lm1$coefficients[1] + lm1$coefficients[i])
+  year = df_mean_totfarte$year[i]
+  mean_value_agg = df_mean_totfarte$mean_totfarte[i]
+  difference = round(mean_value_lm1 - mean_value_agg,5)
+  results = rbind(results, cbind(year, mean_value_agg, mean_value_lm1, difference))
+}
+sample_n(results, 3)
+```
+
+We looked at the residual plot for this model and saw that the residuals are not well behaved. This model is not taking the nested dependency (accross states) within the data into account. We furthermore strongly believe that we are missing a lot of important explanatory variables.
+
+When we take a look at the mean values of total traffic fatalities between 1980 and 2004, we see that there was certainly an improvement over time. The improvement however did not occur 'continuously' (year by year), but rather in two steps. The first improvement took place between 1980 and 1983 (decrease of roughly 5.3) and the second improvement took place between 1990 and 1992 (decrease of around 2.3). During the other time periods, the total traffic fatalaties remained roughly constant every year (with just some 'natural' variation).
+
+# Question 3:
+
+Like in question 2, we are fitting a pooled OLS linear regression model, but this time we are including more explanatory variables than just the dummy variables for the years. We are including bac08 and bac10, perse, sbprim and sbsecond, sl70plus, gdl, perc14_24, unem and vehicmilespc.
+
+Most of our newly added variables are either dummy variables (sbprim, sbsecond) or indicate fractions of a year (bac08, bac10, perse, sl70plus, gdl), which mainly hold either 0 or 1. Naturally, the distributions for these variables all have extreme peaks at 0 and 1.
+
+We were debating on whether or not to bin the 'fraction of year' variables to 0 and 1. We however believe that the information loss outweighs the gain in comprehensibility/simplicity, which is why we decided to leave the variables as they are.
+
+For the other variables (totfatrte, perc14_24, unem and vehicmilespc) we looked at the histograms and based on that tried out different transformations. We furthermore performed Shapiro Wilk Tests on the distributions before and after transformation to check if the transformation improved the distribution, in terms of being closer to a normal distribution. The Shapiro Wilk Test tests against the null hypothesis, that the variable stems from a normal distribution.
+
+The totfatrte variable has a right skew. We were not able to find a simple transformation that significantly improved the p-value of the Shapiro Wilk Test, which is why we decided to not transform this variable. The distribution of the perc14_24 variable has an abnormal peak around 14, but looks well balanced otherwise. Different transormations did not improve the distribution significantly. For every transformation, the Shapiro Wilk Test for the log transformed variable continued to show high statistical significance. The distribution of the unem variable has a strong right skew which can be beautifully removed using a log transformation. The resulting log(unem) variable closely resembles a normal distribution and this is also confirmed by the Shapiro Wilk Test. The p-value is close to 0.3 and hence we fail to reject the null hypothesis, which means that it is likely that log(unem) stems from a normal distribution  (see analysis below). The distribution of the vehicmilespc variable is quite a bit leptokurtic, but balanced otherwise. While a log transformation significantly increased the p-value in the Shapiro Wilk Test, the p-value is still far away from being not significant. We therefore decided to not perform a transformation on the vehicmilespc variable.
+
+```{r, fig.height = 3, fig.width = 12}
+par(mfrow = c(1, 2))
+hist(data$unem, breaks = 20)
+hist(log(data$unem), breaks = 20)
+```
+
+```{r}
+shapiro.test(data$unem)$p.value
+shapiro.test(log(data$unem))$p.value
+```
+
+
+We are therefore specifying the following model:
+
+\begin{equation*}
+\begin{aligned}
+totfatrte =& \beta_0 + \beta_1 \cdot d_{81} + \beta_2 \cdot d_{82} + \beta_3 \cdot d_{83} + \beta_4 \cdot d_{84} + \beta_5 \cdot d_{85} + \beta_6 \cdot d_{86} + \beta_7 \cdot d_{87} + \beta_8 \cdot d_{88} + \beta_9 \cdot d_{89} \\
+      & + \beta_{10} \cdot d_{90} + \beta_{11} \cdot d_{91} + \beta_{12} \cdot d_{92} + \beta_{13} \cdot d_{93} + \beta_{14} \cdot d_{94} + \beta_{15} \cdot d_{95} + \beta_{16} \cdot d_{96} + \beta_{17} \cdot d_{97}\\
+      &  + \beta_{18} \cdot d_{98} + \beta_{19} \cdot d_{99} + \beta_{20} \cdot d_{00} + \beta_{21} \cdot d_{01} + \beta_{22} \cdot d_{02} + \beta_{23} \cdot d_{03} + \beta_{24} \cdot d_{04} + \beta_{25} \cdot bac08\\
+      & + \beta_{26} \cdot bac10 + \beta_{27} \cdot perse + \beta_{28} \cdot sbprim + \beta_{29} \cdot sbsecon + \beta_{30} \cdot gdl + \beta_{31} \cdot perc_{14\_24} + \\ 
+      & + \beta_{32} \cdot \log(unem) + \beta_{33} \cdot vehicmilespc
+\end{aligned}
+\end{equation*}
+
+```{r}
+lm2 = lm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 + d91 + 
+         d92 + d93 + d94 + d95 + d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04 + 
+         bac08 + bac10 + perse + sbprim + sbsecon + gdl + perc14_24 + log(unem) + 
+         vehicmilespc, data = data)
+summary(lm2)
+```
+
+The estimated model parameter is roughly -2.6 for the bac08 variable and roughly -1.4 for bac10 variable. This means the model suggests that (ceteris paribus), when a blood alcohol limit of 0.08 is introduced, states can expect to lower their total traffic fatalities rate per 100,000 by about 2.6 per year. If (ceteris paribus) a blood alcohol limit of 0.1 is introduced, states can expect to lower their total traffic fatalities rate per 100,000 by about 1.4 per year. This result is surprising and certainly counter intuitive. 
+By looking at our graphical representation of the combined bac08 and bac10 variable in the EDA section, this result can however be explained: While only a fraction of the states introduced a blood alcohol limit of 0.1 throughout the period of our study, it looks like (almost) all states implemented a 0.08 blood alcohol limit in 2004 (possibly a federal law) - and quite a few states even did so before. This means:
+- When states implemented a 0.1 limit, they always RAISED the blood alcohol limit (from either 0 or 0.08 to 0.1) and we would expect a decrease in the traffic fatalities.
+- However, when states implemented a 0.08 limit, they either RAISED the blood alcohol limit from 0 to 0.08 (we would epect a decrease in the traffic fatalities) or they LOWERED it from a previously existing 0.1 blood alcohol limit (we would expect an increase in the traffic fatalities). 
+As the model doesn't account for the historic state in terms of blood alcohol limit, the parameters are 'skewed'. That is especially true for the 0.08 blood alcohol limit, as the change in limit can be in either direction, whereas for the 0.1 limit it always went in the same direction (and is only of different magnitude). In this instance, pooled OLS is a poor choice of model, as it fails to adequately capture the time-varying effects of either `bac` variable. 
+
+According to our model, an implementation of per se laws slightly lowers the fatality rate. For a full-year implementation of a per se law we would expect a decrease in the total fatalities rate of about 0.44. This result however is not statistically significant and therefore should not be taken at face value.
+
+According to our model, the introduction of a primary seat belt law lowers the fatality rate. For a full-year implementation of a primary seat belt law, we would expect a decrease in the total fatalities rate of about 0.3. Again, we have the problem that certain states might have switched from a secondary to a primary seatbelt law, which would skew this parameter. The result however is far away from statistical significane and therefore should not be taken at face value.
+
+# Question 4:
+
+We reestimate the model from Question 3 using a Fixed Effects Model at the state level. By specifiying a Fixed Effects Model, we account for the time invariant unobserved hetereogenity.
+
+```{r}
+fe1 = plm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 + d91 + 
+          d92 + d93 + d94 + d95 + d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04 + 
+          bac08 + bac10 + perse + sbprim + sbsecon + gdl + perc14_24 + log(unem) + 
+          vehicmilespc, data = data, model = 'within', index = c('state'))
+summary(fe1)
+```
+
+
+ToDo: How do the coefficients on *bac08, bac10, perse, and sbprim* compare with the pooled OLS estimates? Which set of estimates do you think is more reliable? What assumptions are needed in each of these models?  Are these assumptions reasonable in the current context?
+
+lm model output of the four variables under study.
+
+bac08        -2.626e+00  5.454e-01  -4.815 1.67e-06 ***
+bac10        -1.402e+00  4.020e-01  -3.487 0.000506 ***
+perse        -4.423e-01  3.019e-01  -1.465 0.143122    
+sbprim       -2.954e-01  5.002e-01  -0.591 0.554853    
+
+fe model output of the four variables under study.
+
+bac08        -1.3185e+00  3.9535e-01  -3.3351 0.0008808 ***
+bac10        -9.6089e-01  2.6936e-01  -3.5673 0.0003759 ***
+perse        -1.2151e+00  2.3232e-01  -5.2300 2.022e-07 ***
+sbprim       -1.1696e+00  3.4259e-01  -3.4140 0.0006632 ***
+
+
+# Question 5:
+
+To determine wheter or not a random effects model should be used instead of the fixed effects model, we first conduct a Hausman Test, with null hypothesis that the random effects assumptions are correct.
+
+```{r}
+re1 = plm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 + d91 + 
+          d92 + d93 + d94 + d95 + d96 + d97 + d98 + d99 + d00 + d01 + d02 + d03 + d04 + 
+          bac08 + bac10 + perse + sbprim + sbsecon + gdl + perc14_24 + log(unem) + 
+          vehicmilespc, data = data, model = 'random', index = c('state'))
+phtest(fe1, re1)
+```
+
+We reject the null hypothesis with a highly statistically significant p-value. The Hausman Test therefore suggests to use a Fixed Effects model. 
+
+Since furthermore none of our explanatory variables are constant over time (which can't be modeled using fixed effects) and we observe quite a bit of variability in the estimated fixed effects for our `fe1` model (see histogram of the fixed effect accross the states below), we believe that the Fixed Effects Model is the better model for our scenario.
+
+```{r fig.height=3.5}
+#Fixed effects of fe1 model
+hist(fixef(fe1), breaks = 20, c='navy', xlab='Fixed effect size',
+     main='Fixed effect size distribution')
+```
+
+# Question 6:
+
+According to our Fixed Effects model we can state the following:
+
+If - on average - people were to drive 1,000 miles more per year, we would expect the rate of total traffic fatalaties per 100,000 people to increase by roughly 1 (0.96 according to model).
+
+Let us explain this with an example. In 2004, the United States had a popluation of roughly 300 million people. If - on average - people had driven 1,000 miles more in the year of 2004 than they actually did, we would expect about 2,880 additional traffic fatalities.
+
+# Question 7:
+
+If there is serial correlation in the idiosyncratic errors of the model, testable using a function such as `pbgtest` from the `plm` package, the estimated coefficients will be biased [https://ageconsearch.umn.edu/bitstream/116069/2/sjart_st0039.pdf], meaning the relationship between the predictor and outcome variables will be mischaracterized. Further, the estimated variance will be biased, resulting in an invalid estimate for the standard error as well.
+
+If there is heteroskedasticity in the idiosyncratic errors, the coefficients may not necessarily be biased, but this condition will cause the estimated variance to become biased, resulting in an invalid estimate for the standard error [https://en.wikipedia.org/wiki/Heteroscedasticity#Consequences].
 

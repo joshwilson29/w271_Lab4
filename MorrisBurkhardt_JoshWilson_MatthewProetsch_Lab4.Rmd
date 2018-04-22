@@ -8,20 +8,25 @@ output:
   pdf_document: default
 ---
 
-```{r message=FALSE, warning=FALSE}
-library(ggplot2); library(dplyr); library(lme4); library(Hmisc); library(plm); library(gridExtra)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pkg <- c('ggplot2', 'dplyr', 'lme4', 'Hmisc', 'plm', 'gridExtra')
+invisible(lapply(pkg, require, character.only = T))
 ```
 
 # Question 1.
+
+First, we load the data and take a look at the head, tail, summary and str of the data to get a general idea of the data set (partially not displayed here).
 
 ```{r}
 load('driving.RData')
 head(data, 2)[1:14]; #tail(data); #summary(data); #str(data)
 ```
 
-First, we looked at the head, tail, summary and str of the data to get an idea of the data set (partially not displayed here).
 
-The given data set is a longitudinal data set. It consists of the data of the 48 continental states over the time period from 1980 to 2004. 
+Our data set is a longitudinal data set. It consists of the data of the 48 continental states over the time period from 1980 to 2004. 
 
 The data set has the following 56 variables:
 
@@ -150,10 +155,10 @@ hist(data[c('totfatrte','unem','perc14_24','vehicmilespc')])
 
 All of these variables show some degree of positive skew and we will be discussing possible transformations in question 3.
 
-ToDo: Remove??? Next, let us take a look at linear correlations between all the non-dummy variables we will be using in our model. Makes no sense for longitudinal data - right?
+As we can see in the boxplot below, there are huge differences between the distributions of the total fatality rate between different states over the course of the 25 years - in terms of median and variation. The median total fatality rate across states varies between somewhere around 10 to somewhere around 30. Some of the states have very little variation (about 5 points), while others vary widely (about 20 points). A lot of the differences in variation can probably be attributed to the (very unequal) size of the the states. The boxplot to the very right for instance shows the totfatrte distribution for the state of Wyoming which had (and still has) the lowest population of all states (about 500,000 in 2004). Wyoming also has the highest outlier with a total fatality rate of about 50 per 100,000 population.
 
 ```{r}
-cor(data[c('totfatrte','unem','perc14_24','vehicmilespc','bac08','bac10','perse','sbprim','sbsecon','gdl')])
+boxplot(totfatrte ~ state, data=data, main = 'Boxplot of totfatrte for each state', xlab = 'state', ylab = 'totfatrte')
 ```
 
 # Question 2:
@@ -161,9 +166,9 @@ cor(data[c('totfatrte','unem','perc14_24','vehicmilespc','bac08','bac10','perse'
 The totfarte variable holds the total fatalities per 100,000 population.
 
 ```{r}
-df_mean_totfarte = data.frame(aggregate(data$totfatrte, by = list(data$year), mean))
-colnames(df_mean_totfarte) <- c("year", "mean_totfarte")
-df_mean_totfarte
+df_mean_totfatrte = data.frame(aggregate(data$totfatrte, by = list(data$year), mean))
+colnames(df_mean_totfatrte) <- c("year", "mean_totfatrte")
+df_mean_totfatrte
 ```
 
 We specify 1980 as the base year and fit the following linear regression model:
@@ -194,8 +199,8 @@ set.seed(999)
 results = data.frame()
 for (i in 1:25) {
   mean_value_lm1 = ifelse(i==1, lm1$coefficients[1], lm1$coefficients[1] + lm1$coefficients[i])
-  year = df_mean_totfarte$year[i]
-  mean_value_agg = df_mean_totfarte$mean_totfarte[i]
+  year = df_mean_totfatrte$year[i]
+  mean_value_agg = df_mean_totfatrte$mean_totfarte[i]
   difference = round(mean_value_lm1 - mean_value_agg,5)
   results = rbind(results, cbind(year, mean_value_agg, mean_value_lm1, difference))
 }
@@ -216,7 +221,7 @@ For the other variables (totfatrte, perc14_24, unem and vehicmilespc) we looked 
 
 The totfatrte variable has a right skew. We were not able to find a simple transformation that significantly improved the p-value of the Shapiro Wilk Test, which is why we decided to not transform this variable. The distribution of the perc14_24 variable has an abnormal peak around 14, but looks well balanced otherwise. Different transormations did not improve the distribution significantly. For every transformation, the Shapiro Wilk Test for the log transformed variable continued to show high statistical significance. The distribution of the unem variable has a strong right skew which can be beautifully removed using a log transformation. The resulting log(unem) variable closely resembles a normal distribution and this is also confirmed by the Shapiro Wilk Test. The p-value is close to 0.3 and hence we fail to reject the null hypothesis, which means that it is likely that log(unem) stems from a normal distribution  (see analysis below). The distribution of the vehicmilespc variable is quite a bit leptokurtic, but balanced otherwise. While a log transformation significantly increased the p-value in the Shapiro Wilk Test, the p-value is still far away from being not significant. We therefore decided to not perform a transformation on the vehicmilespc variable.
 
-```{r, fig.height = 3, fig.width = 12}
+```{r, fig.height = 2.5, fig.width = 12}
 par(mfrow = c(1, 2))
 hist(data$unem, breaks = 20)
 hist(log(data$unem), breaks = 20)
@@ -277,23 +282,6 @@ From a glance at the model outputs, we can see that directionally all of the est
 
 The fixed effect model has various assumptions that can be found on 457 and 458 of the Wooldridge assigned reading. The important assumptions to note for this modeling exercise are that each explanatory variable changes over time (and that there are no perfect linear relationships between the explanatory variables) and that the expected value of the idiosyncratic error is 0 given the explanatory variables and the unobserved effects (strict exogeneity assumption). In the case of the comparison between the FE model and pooled OLS, the variables changing over time is the most debilitating argument against a pooled OLS.
 
-*I'm ok deleting this and making the professor look at two separate regression results*
-
-lm model output of the four variables under study.
-
-bac08        -2.626e+00  5.454e-01  -4.815 1.67e-06 ***
-bac10        -1.402e+00  4.020e-01  -3.487 0.000506 ***
-perse        -4.423e-01  3.019e-01  -1.465 0.143122    
-sbprim       -2.954e-01  5.002e-01  -0.591 0.554853    
-
-fe model output of the four variables under study.
-
-bac08        -1.3185e+00  3.9535e-01  -3.3351 0.0008808 ***
-bac10        -9.6089e-01  2.6936e-01  -3.5673 0.0003759 ***
-perse        -1.2151e+00  2.3232e-01  -5.2300 2.022e-07 ***
-sbprim       -1.1696e+00  3.4259e-01  -3.4140 0.0006632 ***
-
-
 # Question 5:
 
 To determine wheter or not a random effects model should be used instead of the fixed effects model, we first conduct a Hausman Test, with null hypothesis that the random effects assumptions are correct.
@@ -310,10 +298,9 @@ We reject the null hypothesis with a highly statistically significant p-value. T
 
 Since furthermore none of our explanatory variables are constant over time (which can't be modeled using fixed effects) and we observe quite a bit of variability in the estimated fixed effects for our `fe1` model (see histogram of the fixed effect accross the states below), we believe that the Fixed Effects Model is the better model for our scenario.
 
-```{r fig.height=3.5}
-#Fixed effects of fe1 model
+```{r fig.height=3}
 hist(fixef(fe1), breaks = 20, c='navy', xlab='Fixed effect size',
-     main='Fixed effect size distribution')
+     main='Distribution of Fixed effect Size')
 ```
 
 # Question 6:
@@ -327,7 +314,7 @@ Let us explain this with an example. In 2004, the United States had a popluation
 # Question 7:
 
 ```{r}
-pbgtest(fe1, type = "F")
+pbgtest(fe1, type = "F")$p.value
 ```
 
 The fixed effects model assumes that the idiosyncratic errors are uncorrelated. A violation of this assumption will result in the relationship between the predictor and outcome variables being mischaracterized. Further, the estimated variance will be biased, resulting in an invalid estimate for the standard error as well. We conducted a Breusch-Pagan F-test to determine if our fixed effects model shows any serial correlation. Unfortunately, we reject the null hypothesis: our model displays symptoms of serially correlated errors. If there is heteroskedasticity/serial correlation in the idiosyncratic errors, the coefficients are not necessarily be biased, but the standard errors are likely to be over/understated. The first four assumptions of the FE model get us unbiased estimators; it is the final 3 assumptions that get us a BLUE.

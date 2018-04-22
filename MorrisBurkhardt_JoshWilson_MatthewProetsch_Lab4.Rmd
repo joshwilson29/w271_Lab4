@@ -16,7 +16,7 @@ library(ggplot2); library(dplyr); library(lme4); library(Hmisc); library(plm); l
 
 ```{r}
 load('driving.RData')
-head(data, 2); #tail(data); #summary(data); #str(data)
+head(data, 2)[1:14]; #tail(data); #summary(data); #str(data)
 ```
 
 First, we looked at the head, tail, summary and str of the data to get an idea of the data set (partially not displayed here).
@@ -43,11 +43,9 @@ The data set has the following 56 variables:
 
 - perse = per se law; decimal; fraction of year for which a per se law was in place
 
-- totfat, nghtfat, wkndfat = integer
-
 - totfatpvm, nghtfatpvm, wkndfatpvm = total, nighttime, weekend fatalities, respectively; integer
 
-- statepop = state population; integer
+- totfat, nghtfat, wkndfat, statepop = state population; integer
 
 - totfatrte, nghtfatrte, wkndfatrte = total, nighttime and weekend fatalities per 100,000 population, respectively; decimal
 
@@ -77,37 +75,47 @@ Each of the 48 states has exactly 25 observations across time, which means that 
 sum(is.na(data))
 ```
 
-There is no missing data in our data set. Next, we will display the variables we will be using in our model graphically. For the totfartre, perc14_24, vehicmilespc and unem variable, we plot a line for every state over the course of all the years and for the seatbelt, gdl, zerotol, perse, bacXX and slXX variables we create scatter plots (with jitter) that display the distribution accross the different states for every year. To better display the data, we created a combined blood alcohol limit and speed limit variable.
+There is no missing data in our data set. Next, we will display the variables we will be using in our model graphically. For the totfartre, perc14_24, vehicmilespc and unem variable, we plot a line for every state (colorized) over the course of all the years and for the seatbelt, gdl, zerotol, perse, bacXX and slXX variables we create scatter plots (with jitter) that display the distribution accross the different states for every year. To better display the data, we created a combined blood alcohol limit and speed limit variable.
 
 ```{r, fig.height = 16, fig.width = 12}
-plot1 = ggplot(data = data, aes(x = year, y = totfatrte, group = state)) + 
-  geom_line(alpha=0.5) + ggtitle("total fatality rate")
-plot2 = ggplot(data = data, aes(x = year, y = perc14_24, group = state)) + 
-  geom_line(alpha=0.5) + ggtitle("percentage of population between 14 - 24")
-plot3 = ggplot(data = data, aes(x = year, y = vehicmilespc, group = state)) + 
-  geom_line(alpha=0.5) + ggtitle("vehicle miles traveled per capita")
-plot4 = ggplot(data = data, aes(x = year, y = unem, group = state)) + 
-  geom_line(alpha=0.5) + ggtitle("unemployment rate")
+plot1 = ggplot(data = data, aes(x = year, y = totfatrte, colour = as.factor(state))) + 
+  geom_line(alpha=0.5, show.legend = F) + ggtitle("Total Fatality Rate (per 100,000 population)") +
+  theme(plot.title = element_text(hjust = 0.5)) +  ylab("Total Fatality Rate")
+plot2 = ggplot(data = data, aes(x = year, y = perc14_24, colour = as.factor(state))) + 
+  geom_line(alpha=0.5,show.legend = F) + ggtitle("Percentage of Population between Ages 14 and 24") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylab("Percent of Population")
+plot3 = ggplot(data = data, aes(x = year, y = vehicmilespc, colour = as.factor(state))) + 
+  geom_line(alpha=0.5, show.legend = F) + ggtitle("Vehicle Miles Traveled Per Capita") +
+  theme(plot.title = element_text(hjust = 0.5)) + ylab("Miles Per Capita")
+plot4 = ggplot(data = data, aes(x = year, y = unem, colour = as.factor(state))) + 
+  geom_line(alpha=0.5, show.legend = F) + ggtitle("Unemployment Rate") + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylab("Percent Unemployed")
 plot5 = ggplot(data = data, aes(x = year, y = seatbelt, group = state)) + 
-  ggtitle("seatbelt law (0 = none, 1 = primary offense, 2 = secondary offense)") + 
-  geom_jitter(width = 0.2, height = 0.2)
+  ggtitle("Seatbelt Laws by Year") + 
+  geom_jitter(width = 0.2, height = 0.2, alpha = 0.3) + theme(plot.title = element_text(hjust = 0.5)) +
+  ylab("Law Type: \n 0 = none, 1 = primary offense,\n 2 = secondary offense)")
 plot6 = ggplot(data = data, aes(x = year, y = gdl, group = state)) + 
-  ggtitle("graduate drivers license law") + geom_jitter(width = 0.25, height = 0.1)
+  ggtitle("Graduate Drivers License Law") + geom_jitter(width = 0.25, height = 0.1, alpha = 0.3) +
+  theme(plot.title = element_text(hjust = 0.5)) + ylab("% of Year with Law")
 plot7 = ggplot(data = data, aes(x = year, y = zerotol, group = state)) + 
-  ggtitle("zero tolerance law") + geom_jitter(width = 0.25, height = 0.1)
-plot8 = ggplot(data = data, aes(x = year, y = perse, group = state)) + 
-  ggtitle("administrative license revocation (per se law)") + 
-  geom_jitter(width = 0.25, height = 0.1)
+  ggtitle("Zero Tolerance Law") + geom_jitter(width = 0.25, height = 0.1, alpha = 0.3) +
+  theme(plot.title = element_text(hjust = 0.5)) + ylab("% of Year with Law")
+plot8 = ggplot(data = data, aes(x = year, y = perse, gcolour = as.factor(state))) + 
+  ggtitle("Administrative License Revocation (per se law)") + 
+  geom_jitter(width = 0.25, height = 0.1, alpha = 0.3) + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylab("% of Year with Law")
 # Create blood alcohol limit variable for law that was valid for the majority of the year.
 data$baccombined = ifelse(round(data$bac10) > 0, 0.1, 0.08 * round(data$bac08))
 plot9 = ggplot(data = data, aes(x = year, y = baccombined, group = state)) + 
-  ggtitle("blood alcohol limit for majority of each year") + 
-  geom_jitter(width = 0.25, height = 0.005)
+  ggtitle("BAC for Majority of Each Year") + 
+  geom_jitter(width = 0.25, height = 0.005, alpha = 0.3) + 
+  theme(plot.title = element_text(hjust = 0.5)) + ylab("BAC Limit by Law")
 # Create speed limit variable.
 data$slcombined = ifelse(round(data$sl55) > 0, 55, ifelse(round(data$sl65) > 0, 65,
                          ifelse(round(data$sl70) > 0, 70, ifelse(round(data$sl75) > 0, 75, 99))))
 plot10 = ggplot(data = data, aes(x = year, y = slcombined, group = state)) + 
-  ggtitle("speed limit for majority of each year") + geom_jitter(width = 0.25, height = 1)
+  ggtitle("Speed Limit for Majority of Each Year") + geom_jitter(width = 0.25, height = 1, alpha = 0.3) +
+  theme(plot.title = element_text(hjust = 0.5)) + ylab("Speed Limit")
 grid.arrange(plot1, plot2, plot3, plot4, plot5, plot6, 
              plot7, plot8, plot9, plot10, ncol=2)
 ```
@@ -140,7 +148,7 @@ Next, we take a look at histograms for the non-dummy and non-'fraction of the ye
 hist(data[c('totfatrte','unem','perc14_24','vehicmilespc')])
 ```
 
-All of these variables are at least a little bit skewed and we will be discussing possible transformation of those in question 3.
+All of these variables show some degree of positive skew and we will be discussing possible transformations in question 3.
 
 ToDo: Remove??? Next, let us take a look at linear correlations between all the non-dummy variables we will be using in our model. Makes no sense for longitudinal data - right?
 
@@ -260,6 +268,8 @@ fe1 = plm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 
           bac08 + bac10 + perse + sbprim + sbsecon + gdl + perc14_24 + log(unem) + 
           vehicmilespc, data = data, model = 'within', index = c('state'))
 summary(fe1)
+
+# Hausman test
 phtest(fe1, lm2)
 ```
 

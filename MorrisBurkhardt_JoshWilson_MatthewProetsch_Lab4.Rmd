@@ -177,6 +177,8 @@ summary(lm1)
 
 All parameter estimates except the one for 1981 are highly statistically significant. 
 
+The model above explains the average difference in the yearly fatalities as compared to the baseline year of 1980; this perspective pools the states by year. Essentially, this model construction allows for varying intercepts for each year, meaning we can model differences in the distributions year-over-year. Every subsequent year after 1980 shows an average decrease in our dependent variables, with later years showing greater decreases. The improvement however did not occur 'continuously' (year by year), but rather in two steps. The first improvement took place between 1980 and 1983 (decrease of roughly 5.3) and the second improvement took place between 1990 and 1992 (decrease of around 2.3). During the other time periods, the total traffic fatalaties remained roughly constant every year (with just some 'natural' variation). As there are no other explanatory variables in this model, the year variables are capturing variability that might come from new laws being enacted, improvements in car safety technology, and other factors related to the rise and fall of total vehicular fatalities. From the individual t-tests, nearly all of the years are significantly different from 1980, with the exception of 1981. Therefore, it is unsuprising to see that the F test is also significant. In order to determine whether this is an appropriate model for our task, we would want to check whether the variance in error changes over time. Regardless, this model is likely to suffer from omitted variable bias, as we have very few variables that are time-varying.
+
 This model explains exactly what was calculated in the aggregation above. If we add any of the above estimated dummy parameters to the intercept, we receive the mean totfatrte value for the respective year. Below, we show this for three randomly selected years.
 
 ```{r}
@@ -192,9 +194,7 @@ for (i in 1:25) {
 sample_n(results, 3)
 ```
 
-We looked at the residual plot for this model and saw that the residuals are not well behaved. This model is not taking the nested dependency (accross states) within the data into account. We furthermore strongly believe that we are missing a lot of important explanatory variables.
-
-When we take a look at the mean values of total traffic fatalities between 1980 and 2004, we see that there was certainly an improvement over time. The improvement however did not occur 'continuously' (year by year), but rather in two steps. The first improvement took place between 1980 and 1983 (decrease of roughly 5.3) and the second improvement took place between 1990 and 1992 (decrease of around 2.3). During the other time periods, the total traffic fatalaties remained roughly constant every year (with just some 'natural' variation).
+We looked at the residual plot for this model and saw that the residuals are not well behaved. This model is not taking the nested dependency (across states) within the data into account. Furthermore, we strongly believe that several important explanatory variables are missing from the model.
 
 # Question 3:
 
@@ -260,10 +260,14 @@ fe1 = plm(totfatrte ~ d81 + d82 + d83 + d84 + d85 + d86 + d87 + d88 + d89 + d90 
           bac08 + bac10 + perse + sbprim + sbsecon + gdl + perc14_24 + log(unem) + 
           vehicmilespc, data = data, model = 'within', index = c('state'))
 summary(fe1)
+phtest(fe1, lm2)
 ```
 
+From a glance at the model outputs, we can see that directionally all of the estimates are consistent across both models. The pooled OLS model has higher estimates for all of the variables except bac10. The standard errors for the fixed effect models are uniformly lower than all of the fixed effects for the OLS model, potentially indicating higher precision in the fixed effect model. All of the variables in the fixed effect model are statistically significant at the 0.05 level, whereas only the two BAC variables are statistically significant in the pooled model. We believe that the independent variables vary with the unobserved effects, making the pooled OLS model inconsistent because this violates an assumption of the model. The unobserved effect of state is likely correlated with the other explanatory variables: for example, Utah is a state with tighter laws on alcohol due to the predominantly Mormon population. Further, the Hausman test also supports that the fixed effects model is the better choice because we reject the null hypothesis that the unobserved effect does not covary with explanatory variables.
 
-ToDo: How do the coefficients on *bac08, bac10, perse, and sbprim* compare with the pooled OLS estimates? Which set of estimates do you think is more reliable? What assumptions are needed in each of these models?  Are these assumptions reasonable in the current context?
+The fixed effect model has various assumptions that can be found on 457 and 458 of the Wooldridge assigned reading. The important assumptions to note for this modeling exercise are that each explanatory variable changes over time (and that there are no perfect linear relationships between the explanatory variables) and that the expected value of the idiosyncratic error is 0 given the explanatory variables and the unobserved effects (strict exogeneity assumption). In the case of the comparison between the FE model and pooled OLS, the variables changing over time is the most debilitating argument against a pooled OLS.
+
+*I'm ok deleting this and making the professor look at two separate regression results*
 
 lm model output of the four variables under study.
 
@@ -312,7 +316,9 @@ Let us explain this with an example. In 2004, the United States had a popluation
 
 # Question 7:
 
-If there is serial correlation in the idiosyncratic errors of the model, testable using a function such as `pbgtest` from the `plm` package, the estimated coefficients will be biased [https://ageconsearch.umn.edu/bitstream/116069/2/sjart_st0039.pdf], meaning the relationship between the predictor and outcome variables will be mischaracterized. Further, the estimated variance will be biased, resulting in an invalid estimate for the standard error as well.
+```{r}
+pbgtest(fe1, type = "F")
+```
 
-If there is heteroskedasticity in the idiosyncratic errors, the coefficients may not necessarily be biased, but this condition will cause the estimated variance to become biased, resulting in an invalid estimate for the standard error [https://en.wikipedia.org/wiki/Heteroscedasticity#Consequences].
+The fixed effects model assumes that the idiosyncratic errors are uncorrelated. A violation of this assumption will result in the relationship between the predictor and outcome variables being mischaracterized. Further, the estimated variance will be biased, resulting in an invalid estimate for the standard error as well. We conducted a Breusch-Pagan F-test to determine if our fixed effects model shows any serial correlation. Unfortunately, we reject the null hypothesis: our model displays symptoms of serially correlated errors. If there is heteroskedasticity/serial correlation in the idiosyncratic errors, the coefficients are not necessarily be biased, but the standard errors are likely to be over/understated. The first four assumptions of the FE model get us unbiased estimators; it is the final 3 assumptions that get us a BLUE.
 

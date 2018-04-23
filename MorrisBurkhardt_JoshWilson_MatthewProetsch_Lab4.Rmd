@@ -1,6 +1,6 @@
 ---
 title: "W271: Lab 4"
-author: "Morris Burkhardt/group"
+author: "Morris Burkhardt, Josh Wilson, Matthew Proetsch"
 date: "April 22, 2018"
 geometry: margin = 1.3 cm
 fontsize: 10 pt
